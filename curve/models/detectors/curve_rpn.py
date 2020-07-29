@@ -6,8 +6,7 @@ class CurveRPN(RPN):
     def compose_rpn_loss_inputs(self,
                                 gt_bboxes=None,
                                 gt_coefs=None,
-                                gt_skeleton=None,
-                                gt_projection=None):
+                                gt_skeleton=None):
         return NotImplementedError
 
     def forward_train(self,
@@ -16,11 +15,10 @@ class CurveRPN(RPN):
                       gt_bboxes=None,
                       gt_coefs=None,
                       gt_skeleton=None,
-                      gt_projection=None,
                       gt_bboxes_ignore=None):
         x = self.extract_feat(img)
         rpn_outs = self.rpn_head(x)
-        rpn_loss_inputs = rpn_outs + self.compose_rpn_loss_inputs(gt_bboxes, gt_coefs, gt_skeleton, gt_projection)
+        rpn_loss_inputs = rpn_outs + self.compose_rpn_loss_inputs(gt_bboxes, gt_coefs, gt_skeleton)
         losses = self.rpn_head.loss(
             *rpn_loss_inputs, gt_labels=None, img_metas=img_meta, gt_bboxes_ignore=gt_bboxes_ignore,
             cfg=self.train_cfg.rpn)
@@ -42,9 +40,8 @@ class ChebyRPN(CurveRPN):
     def compose_rpn_loss_inputs(self,
                                 gt_bboxes=None,
                                 gt_coefs=None,
-                                gt_skeleton=None,
-                                gt_projection=None):
-        return gt_bboxes, gt_coefs, gt_skeleton, gt_projection
+                                gt_skeleton=None):
+        return gt_bboxes, gt_coefs, gt_skeleton
 
 
 @DETECTORS.register_module

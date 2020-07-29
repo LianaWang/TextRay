@@ -91,6 +91,7 @@ def main():
     # log some basic info
     logger.info('Distributed training: {}'.format(distributed))
     logger.info('MMDetection Version: {}'.format(__version__))
+    logger.info('TextRay Version: {}'.format(os.popen("git log -1").read()))
     logger.info('Config:\n{}'.format(cfg.text))
     logging.getLogger("shapely").setLevel(logging.ERROR)
 

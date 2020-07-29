@@ -13,12 +13,10 @@ def cheby_anchor_target(anchor_list,
                         gt_bboxes_list,
                         gt_cheby_list,
                         gt_skeleton_list,
-                        gt_projection_list,
                         img_metas,
                         target_means,
                         target_stds,
                         num_coords,
-                        image_size,
                         cfg,
                         gt_bboxes_ignore_list=None,
                         gt_labels_list=None,
@@ -42,7 +40,6 @@ def cheby_anchor_target(anchor_list,
     gt_labels_list = NoneList(gt_labels_list)
     gt_cheby_list = NoneList(gt_cheby_list)
     gt_skeleton_list = NoneList(gt_skeleton_list)
-    gt_projection_list = NoneList(gt_projection_list)
 
     bbox_pred_list = []
     for i in range(num_imgs):
@@ -61,21 +58,19 @@ def cheby_anchor_target(anchor_list,
         gt_bboxes_list,
         gt_cheby_list,
         gt_skeleton_list,
-        gt_projection_list,
         gt_bboxes_ignore_list,
         gt_labels_list,
         img_metas,
         target_means=target_means,
         target_stds=target_stds,
         num_coords=num_coords,
-        image_size = image_size,
         cfg=cfg,
         label_channels=label_channels,
         sampling=sampling,
         unmap_outputs=unmap_outputs)
 
     (all_labels, all_label_weights, all_bbox_targets, all_bbox_weights,
-     all_ctr_targets, all_ctr_weights, all_offset_targets, all_offset_weights,
+     all_ctr_targets, all_ctr_weights,
      pos_inds_list, neg_inds_list) = all_targets
     # no valid anchors
     if any([labels is None for labels in all_labels]):
@@ -91,10 +86,8 @@ def cheby_anchor_target(anchor_list,
     bbox_weights_list = images_to_levels(all_bbox_weights, num_level_anchors)
     ctr_targets_list = images_to_levels(all_ctr_targets, num_level_anchors)
     ctr_weights_list = images_to_levels(all_ctr_weights, num_level_anchors)
-    offset_targets_list = images_to_levels(all_offset_targets, num_level_anchors)
-    offset_weights_list = images_to_levels(all_offset_weights, num_level_anchors)
     return (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
-            ctr_targets_list, ctr_weights_list, offset_targets_list, offset_weights_list, num_total_pos, num_total_neg)
+            ctr_targets_list, ctr_weights_list, num_total_pos, num_total_neg)
 
 
 def cheby_target_single(flat_anchors,
@@ -103,14 +96,12 @@ def cheby_target_single(flat_anchors,
                         gt_bboxes,
                         gt_cheby,
                         gt_skeleton,
-                        gt_projection,
                         gt_bboxes_ignore,
                         gt_labels,
                         img_meta,
                         target_means,
                         target_stds,
                         num_coords,
-                        image_size,
                         cfg,
                         label_channels=1,
                         sampling=True,
@@ -125,7 +116,7 @@ def cheby_target_single(flat_anchors,
 #     print('at cheby_target, gt_bboxes_ignore:', gt_bboxes_ignore)
     if sampling:
         assign_result, sampling_result = assign_and_sample(
-            anchors, gt_bboxes, gt_cheby, gt_skeleton, gt_projection, gt_bboxes_ignore, None, cfg)
+            anchors, gt_bboxes, gt_cheby, gt_skeleton, gt_bboxes_ignore, None, cfg)
     else:
         bbox_assigner = build_assigner(cfg.assigner)
         assign_result = bbox_assigner.assign(anchors, gt_bboxes,
@@ -143,27 +134,20 @@ def cheby_target_single(flat_anchors,
     bbox_weights = torch.zeros((num_valid_anchors, 360), dtype=torch.float).cuda()
     ctr_targets = torch.zeros((num_valid_anchors, 3), dtype=torch.float).cuda()
     ctr_weights = torch.zeros((num_valid_anchors, 3), dtype=torch.float).cuda()
-    offset_targets = torch.zeros((num_valid_anchors, 720), dtype=torch.float).cuda()
-    offset_weights = torch.zeros((num_valid_anchors, 720), dtype=torch.float).cuda()
 
     pos_inds = sampling_result.pos_inds
     neg_inds = sampling_result.neg_inds
     if len(pos_inds) > 0:
         deltas, weights = bbox2cheby(sampling_result.pos_bboxes,
                                      bbox_pred[pos_inds, :],
-                                     sampling_result.pos_gt_bboxes,
                                      sampling_result.pos_gt_cheby,
-                                     sampling_result.pos_gt_projection,
-                                     num_coords, image_size, 
+                                     sampling_result.pos_gt_skeleton, num_coords, 
                                      target_means, target_stds)
         
-        bbox_targets[pos_inds, :] = deltas[:, :(num_coords-3)]
+        bbox_targets[pos_inds, :] = deltas[:, :-3]
         bbox_weights[pos_inds, :] = weights.unsqueeze(1) if cfg.use_centerness else 1.0
-        ctr_targets[pos_inds, :] = deltas[:, (num_coords-3):num_coords]
+        ctr_targets[pos_inds, :] = deltas[:, -3:]
         ctr_weights[pos_inds, :] = weights.unsqueeze(1) if cfg.use_centerness else 1.0
-        if deltas.size(-1) > num_coords:
-            offset_targets[pos_inds, :] = deltas[:, num_coords:]
-            offset_weights[pos_inds, :] = weights.unsqueeze(1) if cfg.use_centerness else 1.0
         if gt_labels is None:
             labels[pos_inds] = 1
         else:
@@ -185,7 +169,5 @@ def cheby_target_single(flat_anchors,
         bbox_weights = unmap(bbox_weights, num_total_anchors, inside_flags)
         ctr_targets = unmap(ctr_targets, num_total_anchors, inside_flags)
         ctr_weights = unmap(ctr_weights, num_total_anchors, inside_flags)
-        offset_targets = unmap(offset_targets, num_total_anchors, inside_flags)
-        offset_weights = unmap(offset_weights, num_total_anchors, inside_flags)
-    return (labels, label_weights, bbox_targets, bbox_weights, ctr_targets, ctr_weights, offset_targets, offset_weights, pos_inds,
+    return (labels, label_weights, bbox_targets, bbox_weights, ctr_targets, ctr_weights, pos_inds,
             neg_inds)

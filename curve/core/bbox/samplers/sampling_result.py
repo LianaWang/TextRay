@@ -3,7 +3,7 @@ from mmdet.utils import util_mixins
 
 class CurveSamplingResult(util_mixins.NiceRepr):
 
-    def __init__(self, pos_inds, neg_inds, bboxes, gt_bboxes, gt_cheby, gt_skeleton, gt_projection, assign_result,
+    def __init__(self, pos_inds, neg_inds, bboxes, gt_bboxes, gt_cheby, gt_skeleton, assign_result,
                  gt_flags):
         self.pos_inds = pos_inds
         self.neg_inds = neg_inds
@@ -17,8 +17,6 @@ class CurveSamplingResult(util_mixins.NiceRepr):
         self.pos_gt_skeleton = gt_skeleton[self.pos_assigned_gt_inds, :]
         if gt_cheby is not None:
             self.pos_gt_cheby = gt_cheby[self.pos_assigned_gt_inds, :]
-        if gt_projection is not None:
-            self.pos_gt_projection = gt_projection[self.pos_assigned_gt_inds, :]
         if assign_result.labels is not None:
             self.pos_gt_labels = assign_result.labels[pos_inds]
         else:

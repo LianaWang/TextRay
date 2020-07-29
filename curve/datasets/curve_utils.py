@@ -1,9 +1,9 @@
 import numpy as np
 import numpy.polynomial.chebyshev as chebyshev
 import numpy.polynomial.polynomial as polynomial
-from shapely.geometry import Polygon, LineString, MultiLineString, GeometryCollection, LinearRing, Point
+from shapely.geometry import Polygon, LineString, MultiLineString, GeometryCollection
 import math
-import torch
+
 
 def polar_coord(point, center):
     """
@@ -41,7 +41,6 @@ def sample_contour(points, centers, hard_flg, num_samples=360):
     R_ = 9999.0
     contours = []
     skeleton = []
-    polys = []
     # trans = np.floor(np.array(trans) / 3.0)
     for ix in range(len(points)):
         if hard_flg[ix] == 1:
@@ -51,7 +50,6 @@ def sample_contour(points, centers, hard_flg, num_samples=360):
             print("polygon not valid")
             hard_flg[ix] = 1
             continue
-        polys.append(poly)
         center = np.array(centers[ix])
         edge_rt = []
         edge_xy = []
@@ -87,7 +85,7 @@ def sample_contour(points, centers, hard_flg, num_samples=360):
             print("edge_cart is None", poly)
     if len(contours) == 0:
         print("contours is zero")
-    return contours, skeleton, hard_flg, polys
+    return contours, skeleton, hard_flg
 
 
 def find_principle(contours_xy):
@@ -147,50 +145,9 @@ def cheby_fit(contours, num_coefs):
         r_maxs.append(r_max)
     coefs = np.array(coefs)
     r_maxs = np.array(r_maxs)
-    cheby_coef = np.hstack((coefs, r_maxs[:, np.newaxis]))    
+    cheby_coef = np.hstack((coefs, r_maxs[:, np.newaxis]))
     return cheby_coef
 
-def get_uniform_points(ad_points):
-    points = torch.roll(torch.tensor(ad_points).reshape([-1, 360, 2]), shifts=-5, dims=1)
-    dists = (torch.roll(points, shifts=-1, dims=1) - points).norm(dim=-1).cumsum(dim=-1).numpy()
-    uni_points = torch.zeros((points.size(0), 36, 2))
-    for i in range(len(dists)):
-        inds = np.searchsorted(dists[i], np.histogram(dists[i], bins=uni_points.size(1))[1])[:-1]
-        uni_points[i, :, :] = points[i, inds, :]
-    return uni_points
-
-def get_projection(cheby, gt_polys):
-    theta = np.linspace(-1, 1, 360, endpoint=False)
-    projection = []
-    contours = []
-    for j in range(cheby.shape[0]):
-        coef = cheby[j, :-3]
-        r_max = cheby[j, -3]
-        center = cheby[j, -2:]
-        r_recon = chebyshev.chebval(theta, coef) * r_max
-        contour_recon = np.vstack((theta*math.pi, r_recon)).transpose()
-        contour = np.zeros((contour_recon.shape[0], contour_recon.shape[1]))
-        for i in range(contour_recon.shape[0]):
-            contour[i, 0] = contour_recon[i, 1] * math.cos(contour_recon[i, 0]) + center[0]
-            contour[i, 1] = contour_recon[i, 1] * math.sin(contour_recon[i, 0]) + center[1]
-        contours.append(contour)
-#     contours = get_uniform_points(contours)
-    contours = np.array(contours)
-        
-    for j in range(len(gt_polys)):
-        poly = gt_polys[j]
-        ad_p = []
-        contour = contours[j, :]
-        for i in range(contour.shape[0]):
-            point = Point(contour[i])
-            pol_ext = LinearRing(poly.exterior.coords)
-            d = pol_ext.project(point)
-            p = pol_ext.interpolate(d)
-            ad_p.append(np.array(p))
-        ad_p = np.array(ad_p).reshape(-1)
-        projection.append(ad_p) 
-    return np.array(projection)  #N*72   
-        
 
 def rotate_fourier_fit(contours, skeleton_ori, num_coefs):
     p = find_principle(skeleton_ori)

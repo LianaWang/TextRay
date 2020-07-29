@@ -85,7 +85,7 @@ class CenterAssigner(BaseAssigner):
             inside = inside * level_flags
         if self.centerness_assign:
             centerness = self.compute_centerness(gt_bboxes, bboxes) #[0, 1]
-            inside = inside * centerness
+            inside = (inside * centerness).clamp(max=1.0)
         if (gt_bboxes_ignore is not None) and (gt_bboxes_ignore.numel() > 0):
             ignore_insides = self.center_inside(gt_bboxes_ignore, bboxes)
             ignore_max_overlaps, _ = ignore_insides.max(dim=0)
@@ -171,11 +171,15 @@ class CenterAssigner(BaseAssigner):
         anchor_size = anchors[:, 2] - anchors[:, 0] + 1
         # flags
         flags = gt_bboxes.new_zeros((gt_bboxes.size(0), anchors.size(0)))
-        flags[gt_size<=0.25, :] += (anchor_size<10) * 1.0 #8
-        flags[(gt_size>0.15)&(gt_size<=0.45), :] += ((anchor_size>10)&(anchor_size<20)) * 1.0 #16
-        flags[(gt_size>0.35)&(gt_size<=0.65), :] += ((anchor_size>25)&(anchor_size<36)) * 1.0 #32
-        flags[(gt_size>0.55)&(gt_size<=0.85), :] += ((anchor_size>50)&(anchor_size<70)) * 1.0 #64
-        flags[gt_size>0.75, :] += (anchor_size>100) * 1.0 #128
+        flags[(gt_size>=0.0)&(gt_size<=0.3), :] += (anchor_size<10) * 1.0 #8
+        flags[(gt_size>=0.2)&(gt_size<=0.55), :] += ((anchor_size>10)&(anchor_size<20)) * 1.0 #16
+        flags[(gt_size>=0.45)&(gt_size<=0.8), :] += ((anchor_size>25)&(anchor_size<36)) * 1.0 #32
+        flags[(gt_size>=0.7), :] += ((anchor_size>50)&(anchor_size<70)) * 1.0 #64
+#       flags[gt_size<=0.25, :] += (anchor_size<10) * 1.0 #8
+#       flags[(gt_size>0.15)&(gt_size<=0.45), :] += ((anchor_size>10)&(anchor_size<20)) * 1.0 #16
+#       flags[(gt_size>0.35)&(gt_size<=0.65), :] += ((anchor_size>25)&(anchor_size<36)) * 1.0 #32
+#       flags[(gt_size>0.55)&(gt_size<=0.85), :] += ((anchor_size>50)&(anchor_size<70)) * 1.0 #64
+#       flags[gt_size>0.75, :] += (anchor_size>100) * 1.0 #128
         # -1 or +1
         flags[flags<1] = -1
         flags[flags>=1] = 1
@@ -201,10 +205,15 @@ class CenterAssigner(BaseAssigner):
                 intersects[k, :] += torch.FloatTensor(inside_gt) # 0 or 1
         return intersects.cuda()
  
-    def center_inside(self, gt_bboxes, anchors):
+    def center_inside(self, gt_bboxes, anchors, gt_in_anchor=False):
+        gt_centers = torch.round(gt_bboxes[:, -2:])
         gt_bboxes = gt_bboxes[:, :-2] # remove gt_centers
         anchor_centers = anchors.new_zeros(anchors.size(0), 2)
         anchor_centers[:, 0] = torch.mean(anchors[:, 0::2], dim=1)
         anchor_centers[:, 1] = torch.mean(anchors[:, 1::2], dim=1)
         insides = pip_cuda(gt_bboxes, anchor_centers)
+        if gt_in_anchor: # compute gt center in anchor
+            left_top = torch.sum(gt_centers[:, None] >= anchors[:, :2], dim=-1)
+            right_bottom = torch.sum(gt_centers[:, None] <= anchors[:, -2:], dim=-1)
+            insides += ((left_top + right_bottom) == 4).float() * 10.0
         return insides

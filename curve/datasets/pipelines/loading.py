@@ -52,11 +52,6 @@ class LoadCurveAnnotations(object):
         if 'skeleton' in ann_info.keys():
             results['gt_skeleton'] = ann_info['skeleton']            
             results['bbox_fields'].extend(['gt_skeleton'])
-            
-        if 'projection' in ann_info.keys():
-            results['gt_projection'] = ann_info['projection']            
-            results['bbox_fields'].extend(['gt_projection'])
-            
         if len(results['gt_bboxes']) == 0 and self.skip_img_without_anno:
             file_path = osp.join(results['img_prefix'],
                                  results['img_info']['filename'])

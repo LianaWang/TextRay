@@ -5,7 +5,7 @@ from mmcv.cnn import normal_init
 
 from mmdet.models.registry import HEADS
 from .anchor_head import ChebyAnchorHead, OffsetAnchorHead, CurveAnchorHead, FourierAnchorHead, RadiusAnchorHead
-from curve.core import offset2bbox, cheby2bbox, fori2bbox, radius2bbox, pred2contours
+from curve.core import offset2bbox, cheby2bbox, fori2bbox, radius2bbox
 from curve.ops import poly_soft_nms
 from curve.models.plugins import ConvDU, ConvLR
 from mmdet.ops import DeformConvPack
@@ -48,8 +48,6 @@ class CurveRPNHead(CurveAnchorHead):
                                  self.num_anchors * self.cls_out_channels, 1)
         self.rpn_reg_c = nn.Conv2d(self.feat_channels, self.num_anchors * (self.num_coords-3), 1)
         self.rpn_reg_sxy = nn.Conv2d(self.feat_channels, self.num_anchors * 3, 1)
-        if self.with_offset:
-            self.rpn_reg_offset = nn.Conv2d(self.feat_channels + 720, self.num_anchors * 720, 1)
 
     def init_weights(self):
         normal_init(self.rpn_conv, std=0.01)
@@ -57,8 +55,6 @@ class CurveRPNHead(CurveAnchorHead):
         normal_init(self.rpn_reg_c, std=0.01)
         normal_init(self.rpn_reg_sxy, std=0.01)
         # todo(wangfangfang): initialize for dulr
-        if self.with_offset:
-            normal_init(self.rpn_reg_offset, std=0.01)
 
     def forward_single(self, x):
         if self.with_du:
@@ -72,13 +68,7 @@ class CurveRPNHead(CurveAnchorHead):
         rpn_cls_score = self.rpn_cls(x)
         rpn_bbox_pred_c = self.rpn_reg_c(x)
         rpn_bbox_pred_sxy = self.rpn_reg_sxy(x)
-        if self.with_offset:
-            rpn_360points = pred2contours(rpn_bbox_pred_c, rpn_bbox_pred_sxy, self.image_size)
-            x = torch.cat([x, rpn_360points], dim=1)
-            rpn_bbox_pred_offset = self.rpn_reg_offset(x)
-            rpn_bbox_pred = torch.cat([rpn_bbox_pred_c, rpn_bbox_pred_sxy, rpn_bbox_pred_offset], dim=1)
-        else:
-            rpn_bbox_pred = torch.cat([rpn_bbox_pred_c, rpn_bbox_pred_sxy], dim=1)
+        rpn_bbox_pred = torch.cat([rpn_bbox_pred_c, rpn_bbox_pred_sxy], dim=1)
         return rpn_cls_score, rpn_bbox_pred
 
     def to_proposals(self, anchors, rpn_bbox_pred, scale_factor, cfg, img_shape=None):
@@ -106,10 +96,7 @@ class CurveRPNHead(CurveAnchorHead):
                 rpn_cls_score = rpn_cls_score.reshape(-1, 2)
                 scores = rpn_cls_score.softmax(dim=1)[:, 1]
             self.print_fn('rpn_head rpn_bbox_pred.shape:', rpn_bbox_pred.shape)
-            if self.with_offset:
-                rpn_bbox_pred = rpn_bbox_pred.permute(1, 2, 0).reshape(-1, self.num_coords+720)
-            else:
-                rpn_bbox_pred = rpn_bbox_pred.permute(1, 2, 0).reshape(-1, self.num_coords)
+            rpn_bbox_pred = rpn_bbox_pred.permute(1, 2, 0).reshape(-1, self.num_coords)
             anchors = mlvl_anchors[idx]
             if cfg.nms_pre > 0 and scores.shape[0] > cfg.nms_pre:
                 _, topk_inds = scores.topk(cfg.nms_pre)
@@ -149,13 +136,13 @@ class CurveRPNHead(CurveAnchorHead):
 @HEADS.register_module
 class ChebyRPNHead(CurveRPNHead, ChebyAnchorHead):
     def to_proposals(self, anchors, rpn_bbox_pred, scale_factor, cfg, img_shape=None):
-        return cheby2bbox(anchors, rpn_bbox_pred, img_shape, scale_factor, self.num_coords, self.image_size, self.with_offset,
+        return cheby2bbox(anchors, rpn_bbox_pred, img_shape, scale_factor, self.num_coords,
                           self.target_means, self.target_stds)
 
 @HEADS.register_module
 class OffsetRPNHead(CurveRPNHead, OffsetAnchorHead):
     def to_proposals(self, anchors, rpn_bbox_pred, scale_factor, cfg, img_shape=None):
-        return offset2bbox(anchors, rpn_bbox_pred, scale_factor, 
+        return offset2bbox(anchors, rpn_bbox_pred, img_shape, scale_factor, 
                            self.target_means, self.target_stds)
 
 @HEADS.register_module

@@ -11,7 +11,7 @@ class ToCurveDataContainer(object):
 
     def __init__(self,
                  fields=(dict(key='img', stack=True), dict(key='gt_bboxes'), dict(key='gt_bboxes_ignore'),
-                         dict(key='gt_coefs'), dict(key='gt_skeleton'), dict(key='gt_projection'), dict(key='gt_labels'))):
+                         dict(key='gt_coefs'), dict(key='gt_skeleton'), dict(key='gt_labels'))):
         self.fields = fields
 
     def __call__(self, results):
@@ -47,7 +47,7 @@ class DefaultCurveFormatBundle(object):
         if 'img' in results:
             img = np.ascontiguousarray(results['img'].transpose(2, 0, 1))
             results['img'] = DC(to_tensor(img), stack=True)
-        for key in ['proposals', 'gt_bboxes', 'gt_coefs', 'gt_skeleton', 'gt_projection', 'gt_bboxes_ignore', 'gt_labels']:
+        for key in ['proposals', 'gt_bboxes', 'gt_coefs', 'gt_skeleton', 'gt_bboxes_ignore', 'gt_labels']:
             if key not in results:
                 continue
             results[key] = DC(to_tensor(results[key]))

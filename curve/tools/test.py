@@ -81,6 +81,7 @@ def collect_results(result_part, size, tmpdir=None):
     else:
         mmcv.mkdir_or_exist(tmpdir)
     # dump the part result to the dir
+    # print("dump the result to dir:", osp.join(tmpdir, 'part_{}.pkl'.format(rank)))
     mmcv.dump(result_part, osp.join(tmpdir, 'part_{}.pkl'.format(rank)))
     dist.barrier()
     # collect all parts
@@ -88,6 +89,7 @@ def collect_results(result_part, size, tmpdir=None):
         return None
     else:
         # load results of all parts from tmp dir
+        # print("rank 0 load results of all parts from tmp dir")
         part_list = []
         for i in range(world_size):
             part_file = osp.join(tmpdir, 'part_{}.pkl'.format(i))

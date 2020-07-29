@@ -1,7 +1,8 @@
-data/
+data
 work_dirs/
 .idea
 .ipynb_checkpoints
+__pycache__
 *.so
 *.pkl
 *.pth

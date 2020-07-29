@@ -128,7 +128,7 @@ class CurveResize(object):
         # print('img_shape:', img_shape)
         # print('resizing box, scale_factor in transforms:', results['scale_factor'])
         # print('results',results)
-        for key in ['gt_bboxes', 'gt_bboxes_ignore', 'gt_projection']:
+        for key in ['gt_bboxes', 'gt_bboxes_ignore', 'gt_skeleton']:
             if key in results.get('bbox_fields', []):
                 bboxes = results[key] * results['scale_factor']
                 bboxes[:, 0::2] = np.clip(bboxes[:, 0::2], 0, img_shape[1] - 1)
@@ -138,10 +138,6 @@ class CurveResize(object):
             if key in results.get('bbox_fields', []):
                 bboxes = results[key]
                 bboxes[:, -3:] = bboxes[:, -3:] * results['scale_factor']
-                results[key] = bboxes
-        for key in ['gt_skeleton']:
-            if key in results.get('bbox_fields', []):
-                bboxes = results[key] * results['scale_factor']
                 results[key] = bboxes
 
     def _resize_masks(self, results):
@@ -352,7 +348,7 @@ class CurveRandomCrop(object):
         results['img_shape'] = img_shape
         
         # post processing: gt_bboxes
-        for key in ['gt_bboxes', 'gt_bboxes_ignore', 'gt_projection']:
+        for key in ['gt_bboxes', 'gt_bboxes_ignore']:
             if key in results.get('bbox_fields', []):
                 bboxes = results[key]
                 bboxes[:, 0::2] -= float(crop_x1)
@@ -385,7 +381,7 @@ class CurveRandomCrop(object):
         origin_ignores = results['gt_bboxes_ignore']
         results['gt_bboxes_ignore'] = np.concatenate((origin_ignores, non_valid_bboxes), axis=0)
         # re-assign by valid_inds, remove non valid bboxes
-        for key in ['gt_bboxes', 'gt_skeleton', 'gt_coefs', 'gt_projection']:
+        for key in ['gt_bboxes', 'gt_skeleton', 'gt_coefs']:
             if key in results.get('bbox_fields', []):
                 bboxes = results[key]
                 results[key] = bboxes[valid_inds, :]

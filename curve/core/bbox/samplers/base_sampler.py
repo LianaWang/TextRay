@@ -11,7 +11,6 @@ class CurveBaseSampler(BaseSampler):
                gt_bboxes,
                gt_cheby,
                gt_skeleton,
-               gt_projection,
                gt_labels=None,
                **kwargs):
         """Sample positive and negative bboxes.  #anchors
@@ -54,5 +53,5 @@ class CurveBaseSampler(BaseSampler):
             assign_result, num_expected_neg, bboxes=bboxes, **kwargs)
         neg_inds = neg_inds.unique()
 
-        return CurveSamplingResult(pos_inds, neg_inds, bboxes, gt_bboxes, gt_cheby, gt_skeleton, gt_projection,
+        return CurveSamplingResult(pos_inds, neg_inds, bboxes, gt_bboxes, gt_cheby, gt_skeleton,
                                    assign_result, gt_flags)

@@ -3,7 +3,7 @@ import math
 import numpy as np
 import numpy.polynomial.chebyshev as chebyshev
 import torch
-from shapely.geometry import Polygon, LineString, MultiLineString, GeometryCollection, LinearRing, Point
+
 
 def bbox2offset(proposals, gt, means=0.0, stds=1.0):
     # proposals are anchors, deltas are offsets
@@ -38,7 +38,7 @@ def bbox2offset(proposals, gt, means=0.0, stds=1.0):
     return deltas, weights
 
 
-def offset2bbox(rois, deltas, scale_factor, means=0.0, stds=1.0):
+def offset2bbox(rois, deltas, img_shape, scale_factor, means=0.0, stds=1.0):
     # rois are anchors, deltas are predicted offsets
     assert rois.size(0) == deltas.size(0)
     rois = rois.float()
@@ -109,90 +109,36 @@ def radius2bbox(rois, deltas, img_shape, scale_factor, means=0.0, stds=1.0,):
     center_x = (deltas[:, -2] + torch.log(px + 1)).exp() - 1
     center_y = (deltas[:, -1] + torch.log(py + 1)).exp() - 1
 
-    contours = torch.zeros((deltas.shape[0], 36 * 2))
+    contours = torch.zeros((deltas.shape[0], 360 * 2))
     theta = torch.linspace(-1, 1, 361)[:-1].cuda()
-    theta = theta[5::10] # take the average degrees
-    r = r.reshape((-1, 36, 10)).mean(dim=-1)  # [N, sample_pts]
     contours[:, 0::2] = r * torch.cos(theta * np.pi)[None, :] * rmax[:, None] + center_x[:, None]
     contours[:, 1::2] = r * torch.sin(theta * np.pi)[None, :] * rmax[:, None] + center_y[:, None]
     
-    contours = contours.cpu()
+    contours = get_uniform_points(contours).cpu()
     contours = clip2img(contours, img_shape)
     contours /= scale_factor
     return contours
 
-def get_uniform_points(ad_points):
-    points = torch.roll(torch.tensor(ad_points).reshape(-1, 360, 2), shifts=-5, dims=1)
-    dists = (torch.roll(points, shifts=-1, dims=1) - points).norm(dim=-1).cumsum(dim=-1).cpu().numpy()
-    uni_points = torch.zeros((points.size(0), 36, 2))
-    for i in range(len(dists)):
-        inds = np.searchsorted(dists[i], np.histogram(dists[i], bins=uni_points.size(1))[1])[:-1]
-        uni_points[i, :, :] = points[i, inds, :]
-    return uni_points.cuda().view(-1, 72)
 
-def pred2contours(rpn_bbox_pred_c, rpn_bbox_pred_sxy, image_size):
-    cheby = rpn_bbox_pred_c.permute((0, 2, 3, 1))
-    cheby = cheby.reshape(-1, cheby.size(-1))
-    sxy = rpn_bbox_pred_sxy.permute((0, 2, 3, 1))
-    sxy = sxy.reshape(-1, sxy.size(-1))
-
-    rmax = sxy[:, 0] * 65.0 + 180.0
-    h = rpn_bbox_pred_c.size(-2)
-    w = rpn_bbox_pred_c.size(-1)
-    py, px = torch.meshgrid([torch.arange(0,h).cuda(), torch.arange(0,w).cuda()])
-    px = ((px + 0.5) * image_size/w).view(-1).repeat(rpn_bbox_pred_c.size(0))
-    py = ((py + 0.5) * image_size/h).view(-1).repeat(rpn_bbox_pred_c.size(0))
-    center_x = (sxy[:, -2] + torch.log(px + 1)).exp() - 1
-    center_y = (sxy[:, -1] + torch.log(py + 1)).exp() - 1
-    
-    r = reconstruct_cheby(cheby, 360, cheby.size(-1))
-    contours = torch.zeros((rpn_bbox_pred_c.size(0)*h*w, 720)).cuda()
-    theta = torch.linspace(-1, 1, 361)[:-1].cuda()
-    contours[:, 0::2] = r * torch.cos(theta * np.pi)[None, :] * rmax[:, None] + center_x[:, None]
-    contours[:, 1::2] = r * torch.sin(theta * np.pi)[None, :] * rmax[:, None] + center_y[:, None]
-
-    contours = contours.reshape((rpn_bbox_pred_c.size(0), h, w, 720))
-    contours = contours.permute((0, 3, 1, 2))
-    contours /= image_size
-    
-    return contours
-
-
-def bbox2cheby(proposals, pred, gt_bbox, gt_cheby, projection, num_coords, image_size, means=0.0, stds=1.0):
+def bbox2cheby(proposals, pred, gt, skeleton, num_coords, means=0.0, stds=1.0):
     """
         - proposals: anchors
         - pred: 26d, = [23] + [3]
         - gt: 26d
     """
     # proposals are anchors, deltas are offsets
-    assert proposals.size(0) == gt_cheby.size(0)
+    assert proposals.size(0) == gt.size(0)
     proposals = proposals.float()
-    cheby = gt_cheby.float()
-    bbox = gt_bbox.float()
+    cheby = gt.float()
     px = (proposals[:, 0] + proposals[:, 2]) * 0.5
     py = (proposals[:, 1] + proposals[:, 3]) * 0.5
     pw = proposals[:, 2] - proposals[:, 0] + 1.0
     ph = proposals[:, 3] - proposals[:, 1] + 1.0
-
-    deltas = cheby.new_zeros((cheby.shape[0], pred.size(-1)))
+    deltas = cheby.new_zeros((cheby.shape[0], num_coords))
     deltas[:, :num_coords-3] = cheby[:, :num_coords-3]
-    deltas[:, num_coords-3] = (cheby[:, -3] - 180.0) / 65.0
-    deltas[:, num_coords-2] = torch.log(cheby[:, -2] + 1) - torch.log(px + 1)
-    deltas[:, num_coords-1] = torch.log(cheby[:, -1] + 1) - torch.log(py + 1)
-    
-    if pred.size(-1) > num_coords:
-        print('hhhhhhhhhhhhhhhhhh')
-        pred_cheby = pred[:, :num_coords].detach()
-        rmax = pred_cheby[:, -3] * 65.0 + 180.0
-        center_x = (pred_cheby[:, -2] + torch.log(px + 1)).exp() - 1
-        center_y = (pred_cheby[:, -1] + torch.log(py + 1)).exp() - 1
-        r = reconstruct_cheby(pred_cheby, 360, num_coords-3)
-        contours = torch.zeros((pred_cheby.shape[0], 720)).cuda()
-        theta = torch.linspace(-1, 1, 361)[:-1].cuda()
-        contours[:, 0::2] = r * torch.cos(theta * np.pi)[None, :] * rmax[:, None] + center_x[:, None]
-        contours[:, 1::2] = r * torch.sin(theta * np.pi)[None, :] * rmax[:, None] + center_y[:, None]
-#         contours = get_uniform_points(contours)
-        deltas[:, num_coords:] = (projection - contours) / image_size
+    deltas[:, -3] = (cheby[:, -3] - 180.0) / 65.0
+    deltas[:, -2] = torch.log(cheby[:, -2] + 1) - torch.log(px + 1)
+    deltas[:, -1] = torch.log(cheby[:, -1] + 1) - torch.log(py + 1)
 
     # centerness
     ctr_dist = cheby[:, -2:] - torch.cat([px.unsqueeze(-1), py.unsqueeze(-1)], dim = -1)
@@ -256,8 +202,16 @@ def f_series(x, n):
         y[i, :] = 2.0 * x * y[i-1, :] - y[i-2, :]
     return y
 
+def get_uniform_points(ad_points):
+    points = torch.roll(ad_points.reshape(-1, 360, 2), shifts=-5, dims=1)
+    dists = (torch.roll(points, shifts=-1, dims=1) - points).norm(dim=-1).cumsum(dim=-1).cpu().numpy()
+    uni_points = torch.zeros((points.size(0), 36, 2))
+    for i in range(len(dists)):
+        inds = np.searchsorted(dists[i], np.histogram(dists[i], bins=uni_points.size(1))[1])[:-1]
+        uni_points[i, :, :] = points[i, inds, :]
+    return uni_points.view(-1, 72)
 
-def cheby2bbox(rois, deltas, img_shape, scale_factor, num_coords, image_size, with_offset, means=0.0, stds=1.0,
+def cheby2bbox(rois, deltas, img_shape, scale_factor, num_coords, means=0.0, stds=1.0,
                sample_pts=360):
     # rois are anchors, deltas are predicted offsets
 
@@ -267,30 +221,25 @@ def cheby2bbox(rois, deltas, img_shape, scale_factor, num_coords, image_size, wi
     stds = deltas.new_tensor(stds).unsqueeze(0)
     deltas = deltas * stds + means
 
+    
     rois = rois.float()
     deltas = deltas.float()
     px = ((rois[:, 0] + rois[:, 2]) * 0.5)
     py = ((rois[:, 1] + rois[:, 3]) * 0.5)
 
-    cheby = deltas[:, :num_coords-3]
-    rmax = deltas[:, num_coords-3] * 65.0 + 180.0
-    center_x = (deltas[:, num_coords-2] + torch.log(px + 1)).exp() - 1
-    center_y = (deltas[:, num_coords-1] + torch.log(py + 1)).exp() - 1
+    cheby = deltas[:, :-3]
+    rmax = deltas[:, -3] * 65.0 + 180.0
+    center_x = (deltas[:, -2] + torch.log(px + 1)).exp() - 1
+    center_y = (deltas[:, -1] + torch.log(py + 1)).exp() - 1
     r = reconstruct_cheby(cheby, sample_pts * duplicates, num_coords-3)
 
     contours = torch.zeros((deltas.shape[0], sample_pts * 2)).cuda()
     theta = torch.linspace(-1, 1, sample_pts * duplicates + 1)[:-1].cuda()
     
-    r = r.reshape((-1, sample_pts, duplicates)).mean(dim=-1)  # [N, sample_pts]
-    theta = theta[duplicates // 2::duplicates] # take the average degrees
     contours[:, 0::2] = r * torch.cos(theta * np.pi)[None, :] * rmax[:, None] + center_x[:, None]
     contours[:, 1::2] = r * torch.sin(theta * np.pi)[None, :] * rmax[:, None] + center_y[:, None]
-    
-    if with_offset:
-        contours += deltas[:, num_coords:] * image_size
-    
-    contours = get_uniform_points(contours)
-    contours = contours.cpu()
+        
+    contours = get_uniform_points(contours).cpu()
     contours = clip2img(contours, img_shape)
     contours /= scale_factor
     return contours
@@ -327,6 +276,7 @@ def fori2bbox(rois, deltas, img_shape, scale_factor, means=[0, 0, 0, 0], stds=[1
     contours[:, 0::2] = r * torch.cos(theta * np.pi)[None, :] * rmax[:, None] + center_x[:, None]
     contours[:, 1::2] = r * torch.sin(theta * np.pi)[None, :] * rmax[:, None] + center_y[:, None]
     contours = contours.cpu()
+    contours = get_uniform_points(contours).cpu()
     contours = clip2img(contours, img_shape)
     contours /= scale_factor
     return contours

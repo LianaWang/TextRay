@@ -43,7 +43,7 @@ def poly_soft_nms_cpu(dets, sigma=0.5, min_score=0.01, decay='linear'):
                 scores[pos] = decay_func(iou) * scores[pos]
                 if scores[pos] <= min_score:
                     remained.remove(pos)
-    dets = np.hstack((dets[keep, :-1], scores[keep, np.newaxis]))
+    dets = torch.cat([dets[keep, :-1], scores[keep, np.newaxis]], dim=1)
     return dets, keep
 
 
@@ -93,7 +93,6 @@ def poly_soft_nms(dets, sigma=0.5, min_score=1e-2, decay='linear'):
         decay=decay)
 
     if is_tensor:
-        return dets.new_tensor(new_dets), dets.new_tensor(
-            inds, dtype=torch.long)
+        return new_dets, torch.tensor(inds)
     else:
         return new_dets.astype(np.float32), inds.astype(np.int64)

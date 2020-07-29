@@ -9,7 +9,7 @@ from shapely.geometry import Polygon
 from curve.ops.polylabel import polylabel
 from mmdet.datasets.custom import CustomDataset
 from mmdet.datasets.registry import DATASETS
-from .curve_utils import expand_twelve, sample_contour, cheby_fit, poly_fit, fourier_fit, rotate_cheby_fit, get_projection
+from .curve_utils import expand_twelve, sample_contour, cheby_fit, poly_fit, fourier_fit, rotate_cheby_fit
 
 
 @DATASETS.register_module
@@ -127,7 +127,7 @@ class ArTDataset(CustomDataset):
     def compute_ann_info(self, img_id):
         boxes, labels, centers, points, _, hard_flg = self.read_ann_info(img_id)
         # from points, centers to extract 360 contour points
-        contours, skeleton_ori, hard_flg, gt_polys = sample_contour(points, centers, hard_flg, self.sample_pts)
+        contours, skeleton_ori, hard_flg = sample_contour(points, centers, hard_flg, self.sample_pts)
         if len(contours) == 0:
             return None
 
@@ -155,11 +155,9 @@ class ArTDataset(CustomDataset):
         
         if self.encoding == 'cheby':
             cheby_coef = cheby_fit(contours, self.degree)
+            assert idx_easy.shape[0] == cheby_coef.shape[0]  
             cheby = np.hstack((cheby_coef, centers_easy))
-            ann.update({"cheby": cheby.astype(np.float32)}) 
-            projection = get_projection(cheby, gt_polys)
-            assert idx_easy.shape[0] == cheby_coef.shape[0] == projection.shape[0] 
-            ann.update({"projection": projection.astype(np.float32)})
+            ann.update({"cheby": cheby.astype(np.float32)})
         elif self.encoding == 'fourier':
             fori_coef = fourier_fit(contours, self.degree)
             assert idx_easy.shape[0] == fori_coef.shape[0]
@@ -170,5 +168,15 @@ class ArTDataset(CustomDataset):
             assert idx_easy.shape[0] == poly_coef.shape[0]  
             poly = np.hstack((poly_coef, centers_easy))
             ann.update({"poly": poly.astype(np.float32)})
+#         elif self.encoding == 'rotate_cheby':
+#             rotate_cheby_coef = rotate_cheby_fit(contours, skeleton_ori, self.degree)
+#             assert idx_easy.shape[0] == rotate_cheby_coef.shape[0]  
+#             rotate_cheby = np.hstack((rotate_cheby_coef, centers_easy))
+#             ann.update({"rotate_cheby": rotate_cheby.astype(np.float32)})
+#         elif self.encoding == 'rotate_fourier':
+#             rotate_fori_coef = rotate_fourier_fit(contours, skeleton_ori, self.degree/2)
+#             assert idx_easy.shape[0] == rotate_fori_coef.shape[0]
+#             rotate_fori = np.hstack((rotate_fori_coef, centers_easy))
+#             ann.update({"rotate_fourier": fori.astype(np.float32)})
 
         return ann
