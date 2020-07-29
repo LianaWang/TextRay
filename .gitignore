@@ -1,0 +1,10 @@
+data/
+work_dirs/
+.idea
+.ipynb_checkpoints
+*.so
+*.pkl
+*.pth
+*.json
+*.swp
+build
