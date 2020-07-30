@@ -7,7 +7,7 @@ from curve.core.bbox.transforms import reconstruct_cheby, reconstruct_fourier, f
 
 
 @weighted_loss
-def reconstruct_loss(pred, target, beta=1.0, sample_pts=360, encoding='cheby'):
+def content_loss(pred, target, beta=1.0, sample_pts=360, encoding='cheby'):
     assert encoding in ['cheby', 'fourier', 'poly']
     assert beta > 0
     assert pred.size(0) == target.size(0) and target.numel() > 0, \
@@ -33,10 +33,10 @@ def reconstruct_loss(pred, target, beta=1.0, sample_pts=360, encoding='cheby'):
 
 
 @LOSSES.register_module
-class ReconstructLoss(nn.Module):
+class ContentLoss(nn.Module):
 
     def __init__(self, encoding='cheby', sample_pts=360, beta=1.0, reduction='mean', loss_weight=1.0):
-        super(ReconstructLoss, self).__init__()
+        super(ContentLoss, self).__init__()
         self.encoding = encoding
         self.sample_pts = sample_pts
         self.beta = beta
@@ -53,7 +53,7 @@ class ReconstructLoss(nn.Module):
         assert reduction_override in (None, 'none', 'mean', 'sum')
         reduction = (
             reduction_override if reduction_override else self.reduction)
-        loss_bbox = self.loss_weight * reconstruct_loss(
+        loss_bbox = self.loss_weight * content_loss(
             pred,
             target,
             weight,

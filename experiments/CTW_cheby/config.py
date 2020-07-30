@@ -30,10 +30,10 @@ model = dict(
         target_means=0.0,
         target_stds=1.0,
         loss_cls=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
-        loss_bbox=dict(type='ReconstructLoss', beta=1.0 / 9.0, loss_weight=1.0),
+        loss_bbox=dict(type='ContentLoss', beta=1.0 / 9.0, loss_weight=1.0),
         loss_ctr=dict(type='SmoothL1Loss', beta=1.0 / 9.0, loss_weight=1.0)))
 # model training and testing settings
-cudnn_benchmark = True
+# cudnn_benchmark = True
 train_cfg = dict(
     rpn=dict(
         assigner=dict(
@@ -100,7 +100,7 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    imgs_per_gpu=8,
+    imgs_per_gpu=6,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
@@ -126,7 +126,7 @@ data = dict(
         test_mode = True,
         pipeline=test_pipeline))
 # optimizer
-optimizer = dict(type='SGD', lr=0.08, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.08, momentum=0.9, weight_decay=0.0001)  # lr=0.08 if without pretrain
 # runner configs
 optimizer_config = dict(grad_clip=dict(max_norm=5., norm_type=2))
 lr_config = dict(
@@ -151,6 +151,6 @@ total_epochs = 500
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs'
-load_from = None #'../ArT_no_CTW.pth'
+load_from = None 
 resume_from = None #'./work_dirs/latest.pth'
 workflow = [('train', 1)]

@@ -10,6 +10,8 @@ def poly_soft_nms_cpu(dets, sigma=0.5, min_score=0.01, decay='linear'):
     dets = dets[dets[:, -1]>=0.5, :]
     boxes = dets[:, :-1]
     scores = dets[:, -1]
+    
+    # filter out non-clockwise polygons
     valid = []
     for i in range(boxes.shape[0]):
         poly = Polygon(boxes[i, :].reshape((-1, 2)))

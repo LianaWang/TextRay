@@ -1,1 +1,1 @@
-from .reconstruct_loss import ReconstructLoss
+from .content_loss import ContentLoss
