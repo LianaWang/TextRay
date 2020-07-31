@@ -100,7 +100,7 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    imgs_per_gpu=6,
+    imgs_per_gpu=8,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
@@ -126,7 +126,7 @@ data = dict(
         test_mode = True,
         pipeline=test_pipeline))
 # optimizer
-optimizer = dict(type='SGD', lr=0.08, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001)  # lr=0.08 if without pretrain
 # runner configs
 optimizer_config = dict(grad_clip=dict(max_norm=5., norm_type=2))
 lr_config = dict(
@@ -151,6 +151,6 @@ total_epochs = 500
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs'
-load_from = None #'../ArT_no_CTW.pth'
+load_from = '../Pretrain_Total/work_dirs/latest.pth' 
 resume_from = None #'./work_dirs/latest.pth'
 workflow = [('train', 1)]
