@@ -12,16 +12,16 @@ def poly_soft_nms_cpu(dets, sigma=0.5, min_score=0.01, decay='linear'):
     scores = dets[:, -1]
     
     # filter out non-clockwise polygons
-    valid = []
-    for i in range(boxes.shape[0]):
-        poly = Polygon(boxes[i, :].reshape((-1, 2)))
-        if poly.is_valid and poly.exterior.is_ccw:
-            valid.append(i)
-        else:
-            continue
-    boxes = boxes[valid, :]
-    scores = scores[valid]
-    dets = dets[valid, :]
+#     valid = []
+#     for i in range(boxes.shape[0]):
+#         poly = Polygon(boxes[i, :].reshape((-1, 2)))
+#         if poly.is_valid and poly.exterior.is_ccw:
+#             valid.append(i)
+#         else:
+#             continue
+#     boxes = boxes[valid, :]
+#     scores = scores[valid]
+#     dets = dets[valid, :]
 
     if len(boxes)<=0:
         return dets, []
