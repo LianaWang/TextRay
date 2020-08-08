@@ -6,6 +6,14 @@ Project code for ACM MM2020 paper: "TextRay: Contour-based Geometric Modeling fo
 - PyTorch
 - MMDetection
 
+```
+pip install -r requirements.txt # install dependencies
+git submodule update --init # clone mmdetection
+cd mmdetection
+python setup.py develop # compile mmdetection
+cd ../curve/ops/ && sh ./compile.sh # compile custom operations
+```
+
 # Notes
 
 1, To train a model:
