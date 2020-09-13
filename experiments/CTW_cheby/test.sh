@@ -16,4 +16,4 @@ else
     exp_name=$2
 fi
 echo "test on gpus=${gpus} and output '${exp_name}.pkl/json' files"
-PYTHONPATH=../../:$PATHPATH ../../curve/tools/dist_test.sh ./config.py work_dirs/latest.pth $gpus --out $exp_name.pkl
+PYTHONPATH=../../:$PATHPATH ../../curve/tools/dist_test.sh ./config.py work_dirs/latest.pth $gpus --out $exp_name.pkl --fuse_conv_bn

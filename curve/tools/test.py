@@ -17,6 +17,7 @@ from mmdet.core import coco_eval, results2json, wrap_fp16_model
 from mmdet.datasets import build_dataloader
 from curve.datasets import build_dataset
 from curve.models import build_detector
+from curve.tools.fuse_conv_bn import fuse_module
 
 
 def single_gpu_test(model, data_loader, show=False):
@@ -120,6 +121,11 @@ def parse_args():
         action='store_true',
         help='whether just eval pickle')
     parser.add_argument(
+        '--fuse_conv_bn',
+        action='store_true',
+        help='Whether to fuse conv and bn, this will slightly increase'
+        'the inference speed')
+    parser.add_argument(
         '--eval',
         type=str,
         nargs='+',
@@ -182,6 +188,9 @@ def main():
     if fp16_cfg is not None:
         wrap_fp16_model(model)
     checkpoint = load_checkpoint(model, args.checkpoint, map_location='cpu')
+    if args.fuse_conv_bn:
+        model = fuse_module(model)
+
     # old versions did not save class info in checkpoints, this walkaround is
     # for backward compatibility
     if 'CLASSES' in checkpoint['meta']:

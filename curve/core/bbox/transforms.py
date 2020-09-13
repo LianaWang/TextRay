@@ -183,10 +183,12 @@ def bbox2fori(proposals, pred, gt, skeleton, means=0.0, stds=1.0, num_coords=26)
     deltas = deltas.sub_(means).div_(stds)
     return deltas, weights
 
-
+fi = None
 def reconstruct_cheby(coefs, sample_pts=360, num_coefs=23):
-    theta = torch.linspace(-1, 1, sample_pts + 1)[:-1].cuda()
-    fi = f_series(theta, num_coefs - 1)  # 0, ..., num_coefs-1 term
+    global fi
+    if fi is None:
+        theta = torch.linspace(-1, 1, sample_pts + 1)[:-1].cuda()
+        fi = f_series(theta, num_coefs - 1)  # 0, ..., num_coefs-1 term
     # ((N*23 dot 23*360).T * N).T----->N*36
     r = torch.mm(coefs[:, :num_coefs], fi)
 #     xy = coefs.new_zeros((coefs.shape[0], 36*2))
@@ -211,6 +213,12 @@ def get_uniform_points(ad_points):
         uni_points[i, :, :] = points[i, inds, :]
     return uni_points.view(-1, 72)
 
+def get_uniform_points_fast(ad_points):
+    points = torch.mean(ad_points.reshape(-1, 36, 10, 2), dim=2)
+    return points.view(-1, 72)
+
+theta_cos = None
+theta_sin = None
 def cheby2bbox(rois, deltas, img_shape, scale_factor, num_coords, means=0.0, stds=1.0,
                sample_pts=36):
     # rois are anchors, deltas are predicted offsets
@@ -233,20 +241,17 @@ def cheby2bbox(rois, deltas, img_shape, scale_factor, num_coords, means=0.0, std
     center_y = (deltas[:, -1] + torch.log(py + 1)).exp() - 1
     r = reconstruct_cheby(cheby, sample_pts * duplicates, num_coords-3)
     
-    ############################## select 36 points according to angles (fast but bumpy) #################################
-#     r = r.reshape((-1, sample_pts, duplicates)).mean(dim=-1)  
-#     contours = torch.zeros((deltas.shape[0], sample_pts * 2))
-#     theta = torch.linspace(-1, 1, sample_pts * duplicates + 1)[:-1].cuda()
-#     theta = theta[duplicates // 2::duplicates]
-#     contours[:, 0::2] = r * torch.cos(theta * np.pi)[None, :] * rmax[:, None] + center_x[:, None]
-#     contours[:, 1::2] = r * torch.sin(theta * np.pi)[None, :] * rmax[:, None] + center_y[:, None]
+    global theta_cos, theta_sin
+    if theta_cos is None or theta_sin is None:
+        theta = torch.linspace(-1, 1, sample_pts * duplicates + 1)[:-1].cuda()
+        theta_cos = torch.cos(theta * np.pi)[None, :]
+        theta_sin = torch.cos(theta * np.pi)[None, :]
+    contours = deltas.new_zeros((deltas.shape[0], sample_pts * duplicates * 2))
+    contours[:, 0::2] = r * theta_cos * rmax[:, None] + center_x[:, None]
+    contours[:, 1::2] = r * theta_sin * rmax[:, None] + center_y[:, None]
 
-    ############################## select 36 points according to perimeter (slow but smooth)##############################
-    contours = torch.zeros((deltas.shape[0], sample_pts * duplicates * 2)).cuda()
-    theta = torch.linspace(-1, 1, sample_pts * duplicates + 1)[:-1].cuda()
-    contours[:, 0::2] = r * torch.cos(theta * np.pi)[None, :] * rmax[:, None] + center_x[:, None]
-    contours[:, 1::2] = r * torch.sin(theta * np.pi)[None, :] * rmax[:, None] + center_y[:, None]
-    contours = get_uniform_points(contours).cpu()
+    contours = get_uniform_points(contours).cpu()        # smooth but slow
+    # contours = get_uniform_points_fast(contours).cpu() # fast but bumpy
 
     contours = clip2img(contours, img_shape)
     contours /= scale_factor
