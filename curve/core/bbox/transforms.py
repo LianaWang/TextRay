@@ -245,7 +245,7 @@ def cheby2bbox(rois, deltas, img_shape, scale_factor, num_coords, means=0.0, std
     if theta_cos is None or theta_sin is None:
         theta = torch.linspace(-1, 1, sample_pts * duplicates + 1)[:-1].cuda()
         theta_cos = torch.cos(theta * np.pi)[None, :]
-        theta_sin = torch.cos(theta * np.pi)[None, :]
+        theta_sin = torch.sin(theta * np.pi)[None, :]
     contours = deltas.new_zeros((deltas.shape[0], sample_pts * duplicates * 2))
     contours[:, 0::2] = r * theta_cos * rmax[:, None] + center_x[:, None]
     contours[:, 1::2] = r * theta_sin * rmax[:, None] + center_y[:, None]
