@@ -3,7 +3,7 @@ matplotlib
 mmcv==0.2.15
 numpy
 # need older pillow until torchvision is fixed
-Pillow==6.2.1
+Pillow==10.0.1
 six
 terminaltables
 torch>=1.3.1
